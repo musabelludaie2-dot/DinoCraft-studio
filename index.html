@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DinoCraft Studio</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#10121b;color:#fff;
+ font-family:Arial,sans-serif;overflow:hidden
+}
+header{
+ height:62px;background:#171b27;border-bottom:1px solid #303648;
+ display:flex;align-items:center;justify-content:space-between;
+ padding:0 20px
+}
+.logo{font-size:21px;font-weight:bold;color:#65e69a}
+.logo span{color:white}
+.header-right{display:flex;gap:9px;align-items:center}
+button,select,input{
+ background:#252b3b;color:white;border:1px solid #3b455c;
+ border-radius:7px;padding:9px;font-size:13px
+}
+button{cursor:pointer}
+button:hover{background:#35415a}
+button.active{background:#247d50;border-color:#4bdb91}
+button:disabled{opacity:.5;cursor:not-allowed}
+main{
+ height:calc(100vh - 62px);
+ display:grid;grid-template-columns:270px 1fr 210px;
+}
+.panel{background:#171b27;padding:14px;overflow:auto}
+.left{border-right:1px solid #303648}
+.right{border-left:1px solid #303648}
+h3{font-size:14px;margin:8px 0 12px;color:#aebbd0}
+.search{width:100%;margin-bottom:10px}
+#assetList{
+ display:flex;flex-direction:column;gap:5px;
+ max-height:calc(100vh - 260px);overflow:auto
+}
+.asset{
+ display:flex;align-items:center;gap:9px;text-align:left;
+ width:100%;background:#202637;border:1px solid transparent;
+ padding:9px;font-size:12px
+}
+.asset:hover{border-color:#65e69a}
+.asset.selected{border-color:#65e69a;background:#263b35}
+.asset-icon{
+ width:30px;height:30px;object-fit:contain;
+ image-rendering:pixelated;background:#111827;border-radius:4px
+}
+.workspace{
+ display:flex;flex-direction:column;min-width:0;
+ align-items:center;justify-content:center;
+ background:#10121b;padding:15px;overflow:auto
+}
+.toolbar{
+ display:flex;gap:7px;flex-wrap:wrap;justify-content:center;
+ margin-bottom:18px
+}
+.canvas-shell{
+ max-width:100%;max-height:calc(100vh - 220px);
+ overflow:auto;padding:20px;background:#222938;
+ border:1px solid #414c61;border-radius:12px
+}
+#canvasWrap{
+ position:relative;width:512px;height:512px;
+ background-color:#202638;
+ background-image:
+ linear-gradient(to right,#ffffff28 1px,transparent 1px),
+ linear-gradient(to bottom,#ffffff28 1px,transparent 1px);
+ image-rendering:pixelated
+}
+canvas{
+ display:block;width:512px;height:512px;
+ image-rendering:pixelated;cursor:crosshair
+}
+.status{color:#9eabc0;font-size:12px;margin-top:13px;text-align:center}
+.tool{
+ width:100%;margin-bottom:7px;text-align:left
+}
+.color-row{display:flex;gap:8px;align-items:center;margin:10px 0}
+input[type=color]{width:48px;height:38px;padding:3px}
+input[type=range]{width:100%;padding:0}
+.small{font-size:11px;color:#9eabc0;line-height:1.5}
+.section{border-bottom:1px solid #303648;padding-bottom:14px;margin-bottom:15px}
+#loading{
+ position:fixed;inset:0;background:#10121beF;
+ display:flex;align-items:center;justify-content:center;
+ flex-direction:column;z-index:10;text-align:center;padding:20px
+}
+.spinner{
+ width:40px;height:40px;border:4px solid #35415a;
+ border-top-color:#65e69a;border-radius:50%;
+ animation:spin 1s linear infinite;margin-bottom:15px
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#message{color:#65e69a;font-size:12px;margin-top:8px}
+@media(max-width:850px){
+ main{grid-template-columns:190px 1fr}
+ .right{display:none}
+}
+@media(max-width:560px){
+ main{grid-template-columns:145px 1fr}
+ .panel{padding:8px}
+}
+</style>
+</head>
+
+<body>
+
+<div id="loading">
+ <div class="spinner"></div>
+ <h2>DinoCraft Studio</h2>
+ <p id="loadText">Connecting to Minecraft texture library...</p>
+</div>
+
+<header>
+ <div class="logo">🦖 DinoCraft <span>Studio</span></div>
+ <div class="header-right">
+  <span class="small" id="versionLabel">Minecraft Java assets</span>
+  <button id="resetBtn">↶ Original</button>
+  <button id="saveBtn">↓ Save PNG</button>
+ </div>
+</header>
+
+<main>
+
+<aside class="panel left">
+ <div class="section">
+  <h3>TEXTURE LIBRARY</h3>
+  <select id="category" class="search">
+   <option value="all">All Textures</option>
+   <option value="block">Blocks</option>
+   <option value="ore">Crystals & Ores</option>
+   <option value="entity">Mobs & Entities</option>
+   <option value="item">Items & Equipment</option>
+   <option value="particle">Particles & Effects</option>
+   <option value="environment">Environment</option>
+   <option value="gui">GUI</option>
+   <option value="animated">Animated Textures</option>
+   <option value="misc">Other Textures</option>
+  </select>
+  <input id="search" class="search" placeholder="🔎 Search sheep, diamond, stone...">
+  <div class="small" id="assetCount">Loading textures...</div>
+ </div>
+ <div id="assetList"></div>
+ <div id="message"></div>
+</aside>
+
+<section class="workspace">
+ <div class="toolbar">
+  <button class="active" data-tool="draw">✏️ Draw</button>
+  <button data-tool="erase">🧽 Erase</button>
+  <button data-tool="bucket">🪣 Fill</button>
+  <button data-tool="picker">🎯 Pick Color</button>
+  <button id="undoBtn">↶ Undo</button>
+  <button id="clearBtn">Clear</button>
+  <button id="importBtn">Import PNG</button>
+  <input type="file" id="fileInput" accept="image/png" hidden>
+ </div>
+
+ <div class="canvas-shell">
+  <div id="canvasWrap">
+   <canvas id="canvas" width="64" height="64"></canvas>
+  </div>
+ </div>
+ <div class="status" id="canvasStatus">
+  Select a Minecraft texture from the library to begin.
+ </div>
+</section>
+
+<aside class="panel right">
+ <div class="section">
+  <h3>TOOLS</h3>
+  <button class="tool active" data-tool="draw">✏️ Draw</button>
+  <button class="tool" data-tool="erase">🧽 Eraser</button>
+  <button class="tool" data-tool="bucket">🪣 Paint Bucket</button>
+  <button class="tool" data-tool="picker">🎯 Color Picker</button>
+ </div>
+
+ <div class="section">
+  <h3>COLOR</h3>
+  <div class="color-row">
+   <input type="color" id="color" value="#65e69a">
+   <span id="colorText">#65e69a</span>
+  </div>
+ </div>
+
+ <div class="section">
+  <h3>BRUSH SIZE</h3>
+  <input type="range" id="brush" min="1" max="8" value="1">
+  <div class="small">Size: <span id="brushValue">1</span> pixels</div>
+ </div>
+
+ <div class="section">
+  <h3>TEXTURE INFO</h3>
+  <p class="small" id="textureName">No texture selected</p>
+  <p class="small" id="textureSize">Size: 64 × 64</p>
+ </div>
+
+ <div class="section">
+  <h3>ANIMATED TEXTURES</h3>
+  <p class="small">Textures with animation metadata are marked in the library. Edit their individual PNG frames here.</p>
+ </div>
+
+ <div class="section">
+  <h3>SOUNDS</h3>
+  <p class="small">Sound files are not pixel textures. They need a separate audio editor.</p>
+ </div>
+
+ <p class="small">DinoCraft Studio is an unofficial community tool and is not affiliated with Mojang or Microsoft.</p>
+</aside>
+
+</main>
+
+<script type="module">
+import MinecraftAssets from
+"https://cdn.jsdelivr.net/npm/minecraft-asset-loader/+esm";
+
+const $ = id => document.getElementById(id);
+const canvas = $("canvas");
+const ctx = canvas.getContext("2d", {willReadFrequently:true});
+const wrap = $("canvasWrap");
+
+let assets;
+let allTextures = [];
+let animatedFiles = new Set();
+let selectedPath = "";
+let originalImage = null;
+let currentTool = "draw";
+let drawing = false;
+let undoStack = [];
+let brushSize = 1;
+let currentColor = "#65e69a";
+
+const categories = {
+ block: p => p.includes("/block/"),
+ entity: p => p.includes("/entity/"),
+ item: p => p.includes("/item/"),
+ particle: p => p.includes("/particle/"),
+ environment: p => p.includes("/environment/"),
+ gui: p => p.includes("/gui/"),
+ misc: p => !/\/(block|entity|item|particle|environment|gui)\//.test(p)
+};
+
+function setMessage(text){
+ $("message").textContent = text;
+}
+
+function niceName(path){
+ return path.split("/").pop()
+  .replace(/\.png$/i,"")
+  .replaceAll("_"," ")
+  .replace(/\b\w/g,c=>c.toUpperCase());
+}
+
+function isOre(path){
+ return /diamond|emerald|amethyst|lapis|redstone|quartz|copper|gold|iron|coal|ancient_debris|netherite/i.test(path);
+}
+
+function getCategoryItems(){
+ const cat = $("category").value;
+ let items = allTextures;
+
+ if(cat === "ore"){
+  items = items.filter(x=>x.path.includes("/block/") && isOre(x.path));
+ }else if(cat === "animated"){
+  items = items.filter(x=>animatedFiles.has(x.path));
+ }else if(categories[cat]){
+  items = items.filter(x=>categories[cat](x.path));
+ }
+
+ const query = $("search").value.trim().toLowerCase();
+ if(query){
+  items = items.filter(x=>
+   niceName(x.path).toLowerCase().includes(query) ||
+   x.path.toLowerCase().includes(query)
+  );
+ }
+ return items;
+}
+
+function renderList(){
+ const list = $("assetList");
+ list.innerHTML = "";
+ const items = getCategoryItems();
+
+ $("assetCount").textContent =
+  items.length + " textures found";
+
+ items.slice(0,500).forEach(item=>{
+  const btn = document.createElement("button");
+  btn.className = "asset" +
+   (selectedPath===item.path ? " selected":"");
+
+  const icon = document.createElement("img");
+  icon.className = "asset-icon";
+  icon.alt = "";
+  icon.src = item.preview || "";
+
+  const name = document.createElement("span");
+  name.textContent = niceName(item.path);
+
+  btn.append(icon,name);
+  btn.addEventListener("click",()=>loadTexture(item.path));
+  list.append(btn);
+
+  // Load small previews only for the first visible entries.
+  if(!item.preview){
+   loadPreview(item);
+  }
+ });
+
+ if(items.length===0){
+  list.textContent="No textures found. Try another search.";
+ }
+}
+
+async function loadPreview(item){
+ try{
+  const id = textureId(item.path);
+  const bytes = await assets.getTexture(id);
+  const url = URL.createObjectURL(
+   new Blob([bytes],{type:"image/png"})
+  );
+  item.preview = url;
+  const img = [...$("assetList").querySelectorAll(".asset")]
+   .find(b=>b.querySelector("span")?.textContent===niceName(item.path))
+   ?.querySelector("img");
+  if(img) img.src=url;
+ }catch(e){}
+}
+
+function textureId(path){
+ return path
+  .replace("assets/minecraft/textures/","")
+  .replace(/\.png$/i,"");
+}
+
+function remember(){
+ undoStack.push({
+  width:canvas.width,
+  height:canvas.height,
+  data:ctx.getImageData(0,0,canvas.width,canvas.height)
+ });
+ if(undoStack.length>30) undoStack.shift();
+}
+
+function updateCanvasDisplay(){
+ const maxSize = Math.min(
+  512,
+  Math.max(128,window.innerWidth-340),
+  Math.max(128,window.innerHeight-230)
+ );
+ const scale = Math.max(1,Math.floor(maxSize /
+  Math.max(canvas.width,canvas.height)));
+ const w=canvas.width*scale;
+ const h=canvas.height*scale;
+
+ canvas.style.width=w+"px";
+ canvas.style.height=h+"px";
+ wrap.style.width=w+"px";
+ wrap.style.height=h+"px";
+ wrap.style.backgroundSize=scale+"px "+scale+"px";
+
+ $("textureSize").textContent =
+  "Size: "+canvas.width+" × "+canvas.height;
+ $("canvasStatus").textContent =
+  niceName(selectedPath || "Imported texture")+
+  " — "+canvas.width+" × "+canvas.height+" pixels";
+}
+
+function loadImageToCanvas(img){
+ canvas.width=img.naturalWidth;
+ canvas.height=img.naturalHeight;
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.imageSmoothingEnabled=false;
+ ctx.drawImage(img,0,0);
+ originalImage=ctx.getImageData(0,0,canvas.width,canvas.height);
+ undoStack=[];
+ updateCanvasDisplay();
+}
+
+async function loadTexture(path){
+ selectedPath=path;
+ $("textureName").textContent=niceName(path);
+ setMessage("Loading original texture...");
+ $("canvasStatus").textContent="Loading original Minecraft texture...";
+
+ try{
+  const bytes=await assets.getTexture(textureId(path));
+  const blob=new Blob([bytes],{type:"image/png"});
+  const url=URL.createObjectURL(blob);
+  const img=new Image();
+
+  img.onload=()=>{
+   loadImageToCanvas(img);
+   URL.revokeObjectURL(url);
+   setMessage("Original texture loaded!");
+   renderList();
+  };
+  img.onerror=()=>{
+   URL.revokeObjectURL(url);
+   setMessage("Could not display this texture.");
+  };
+  img.src=url;
+ }catch(error){
+  console.error(error);
+  setMessage("Texture could not load. Check your internet connection.");
+ }
+}
+
+function chooseTool(tool){
+ currentTool=tool;
+ document.querySelectorAll("[data-tool]").forEach(b=>{
+  b.classList.toggle("active",b.dataset.tool===tool);
+ });
+ canvas.style.cursor=tool==="picker"?"copy":"crosshair";
+}
+
+document.querySelectorAll("[data-tool]").forEach(btn=>{
+ btn.addEventListener("click",()=>chooseTool(btn.dataset.tool));
+});
+
+$("color").addEventListener("input",e=>{
+ currentColor=e.target.value;
+ $("colorText").textContent=currentColor;
+});
+
+$("brush").addEventListener("input",e=>{
+ brushSize=Number(e.target.value);
+ $("brushValue").textContent=brushSize;
+});
+
+function pointFromEvent(e){
+ const rect=canvas.getBoundingClientRect();
+ return {
+  x:Math.floor((e.clientX-rect.left)*canvas.width/rect.width),
+  y:Math.floor((e.clientY-rect.top)*canvas.height/rect.height)
+ };
+}
+
+function paintPixel(x,y,color){
+ const half=Math.floor(brushSize/2);
+ ctx.fillStyle=color;
+ ctx.fillRect(x-half,y-half,brushSize,brushSize);
+}
+
+function hexToRgba(hex){
+ const n=parseInt(hex.slice(1),16);
+ return [(n>>16)&255,(n>>8)&255,n&255,255];
+}
+
+function bucketFill(startX,startY){
+ const w=canvas.width,h=canvas.height;
+ const image=ctx.getImageData(0,0,w,h);
+ const data=image.data;
+ const start=(startY*w+startX)*4;
+ const target=[
+  data[start],data[start+1],data[start+2],data[start+3]
+ ];
+ const fill=hexToRgba(currentColor);
+
+ if(target.every((v,i)=>v===fill[i])) return;
+
+ const stack=[[startX,startY]];
+ const seen=new Uint8Array(w*h);
+
+ while(stack.length){
+  const [x,y]=stack.pop();
+  if(x<0||y<0||x>=w||y>=h) continue;
+
+  const pos=y*w+x;
+  if(seen[pos]) continue;
+  seen[pos]=1;
+
+  const i=pos*4;
+  if(data[i]!==target[0] ||
+     data[i+1]!==target[1] ||
+     data[i+2]!==target[2] ||
+     data[i+3]!==target[3]) continue;
+
+  data[i]=fill[0];
+  data[i+1]=fill[1];
+  data[i+2]=fill[2];
+  data[i+3]=fill[3];
+
+  stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+ }
+ ctx.putImageData(image,0,0);
+}
+
+function useTool(e){
+ const {x,y}=pointFromEvent(e);
+ if(x<0||y<0||x>=canvas.width||y>=canvas.height) return;
+
+ if(currentTool==="picker"){
+  const p=ctx.getImageData(x,y,1,1).data;
+  currentColor="#"+[p[0],p[1],p[2]]
+   .map(v=>v.toString(16).padStart(2,"0")).join("");
+  $("color").value=currentColor;
+  $("colorText").textContent=currentColor;
+  chooseTool("draw");
+  return;
+ }
+
+ if(currentTool==="bucket"){
+  remember();
+  bucketFill(x,y);
+  return;
+ }
+
+ if(currentTool==="erase"){
+  paintPixel(x,y,"rgba(0,0,0,0)");
+ }else{
+  paintPixel(x,y,currentColor);
+ }
+}
+
+canvas.addEventListener("pointerdown",e=>{
+ drawing=true;
+ canvas.setPointerCapture(e.pointerId);
+ if(currentTool==="bucket"||currentTool==="picker"){
+  useTool(e);
+  drawing=false;
+  return;
+ }
+ remember();
+ useTool(e);
+});
+
+canvas.addEventListener("pointermove",e=>{
+ if(drawing) useTool(e);
+});
+
+canvas.addEventListener("pointerup",()=>drawing=false);
+canvas.addEventListener("pointercancel",()=>drawing=false);
+
+$("undoBtn").addEventListener("click",()=>{
+ const previous=undoStack.pop();
+ if(!previous) return;
+ canvas.width=previous.width;
+ canvas.height=previous.height;
+ ctx.putImageData(previous.data,0,0);
+ updateCanvasDisplay();
+});
+
+$("clearBtn").addEventListener("click",()=>{
+ remember();
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+});
+
+$("resetBtn").addEventListener("click",()=>{
+ if(!originalImage) return;
+ canvas.width=originalImage.width;
+ canvas.height=originalImage.height;
+ ctx.putImageData(originalImage,0,0);
+ undoStack=[];
+ updateCanvasDisplay();
+ setMessage("Restored the original texture.");
+});
+
+$("saveBtn").addEventListener("click",()=>{
+ const link=document.createElement("a");
+ link.download=(selectedPath ? niceName(selectedPath) : "texture")
+  .replaceAll(" ","_")+"_edited.png";
+ link.href=canvas.toDataURL("image/png");
+ link.click();
+});
+
+$("importBtn").addEventListener("click",()=>$("fileInput").click());
+
+$("fileInput").addEventListener("change",e=>{
+ const file=e.target.files[0];
+ if(!file) return;
+ const url=URL.createObjectURL(file);
+ const img=new Image();
+ img.onload=()=>{
+  selectedPath="";
+  $("textureName").textContent=file.name;
+  loadImageToCanvas(img);
+  originalImage=ctx.getImageData(0,0,canvas.width,canvas.height);
+  URL.revokeObjectURL(url);
+  setMessage("Your PNG is ready to edit!");
+ };
+ img.src=url;
+});
+
+$("search").addEventListener("input",renderList);
+$("category").addEventListener("change",renderList);
+window.addEventListener("resize",updateCanvasDisplay);
+
+async function start(){
+ try{
+  assets=new MinecraftAssets({version:"release"});
+
+  $("loadText").textContent="Finding Minecraft textures...";
+
+  const results=await assets.search("",{
+   root:"assets/minecraft/textures",
+   extension:"png",
+   limit:10000
+  });
+
+  allTextures=results.filter(x=>
+   x.path && x.path.endsWith(".png")
+  );
+
+  $("loadText").textContent="Checking animated textures...";
+
+  try{
+   const meta=await assets.search("",{
+    root:"assets/minecraft/textures",
+    extension:"mcmeta",
+    limit:5000
+   });
+   animatedFiles=new Set(
+    meta.map(x=>x.path.replace(/\.mcmeta$/i,""))
+   );
+  }catch(e){
+   console.warn("Animation metadata unavailable",e);
+  }
+
+  if(!allTextures.length){
+   throw new Error("No textures were returned.");
+  }
+
+  $("loading").style.display="none";
+  $("assetCount").textContent=allTextures.length+" textures found";
+  renderList();
+
+  const first=allTextures.find(x=>
+   x.path.endsWith("/block/stone.png")
+  ) || allTextures.find(x=>x.path.includes("/block/"));
+
+  if(first) loadTexture(first.path);
+
+ }catch(error){
+  console.error(error);
+  $("loadText").textContent=
+   "Could not connect to the Minecraft texture library. Check your internet and refresh the page.";
+ }
+}
+
+start();
+</script>
+</body>
+</html>
